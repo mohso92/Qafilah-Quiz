@@ -1,15 +1,29 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const path = require('path'); // أضفنا هذه الأداة لتوجيه الروابط إجبارياً
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+// توجيه إجباري لصفحات الموقع
 app.use(express.static('public'));
 
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+app.get('/admin.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+app.get('/player', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'player.html'));
+});
+
 let quizzes = []; 
-let pastResults = []; // مصفوفة لحفظ نتائج الألعاب المنتهية
+let pastResults = []; 
 let players = {};
 let currentQuiz = null;
 let currentQuestionIndex = -1;
@@ -100,7 +114,6 @@ io.on('connection', (socket) => {
                 startQuestionSequence();
             } else {
                 let finalBoard = getLeaderboard();
-                // حفظ النتيجة في الأرشيف
                 pastResults.push({
                     id: Date.now(),
                     title: currentQuiz.title,
@@ -108,7 +121,7 @@ io.on('connection', (socket) => {
                     leaderboard: finalBoard
                 });
                 io.emit('endGame', finalBoard);
-                io.emit('resultsUpdated', pastResults); // إخبار الإدارة بالنتيجة الجديدة
+                io.emit('resultsUpdated', pastResults); 
             }
         }
     });
