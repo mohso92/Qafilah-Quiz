@@ -1,31 +1,47 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const path = require('path'); // أضفنا هذه الأداة لتوجيه الروابط إجبارياً
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// توجيه إجباري لصفحات الموقع
+// التوجيهات
 app.use(express.static('public'));
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+app.get('/admin.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+app.get('/player', (req, res) => res.sendFile(path.join(__dirname, 'public', 'player.html')));
 
-app.get('/admin', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-});
+// الحسابات المعتمدة
+const ACCOUNTS = {
+    'Qafilatalmithaq': 'Mithaq5566',
+    'mohso92': 'Mosh2468'
+};
 
-app.get('/admin.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-});
+// ملف الحفظ
+const DATA_FILE = path.join(__dirname, 'data.json');
+let db = {
+    'Qafilatalmithaq': { quizzes: [], pastResults: [] },
+    'mohso92': { quizzes: [], pastResults: [] }
+};
 
-app.get('/player', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'player.html'));
-});
+// تحميل البيانات إن وجدت
+if (fs.existsSync(DATA_FILE)) {
+    try {
+        const fileData = fs.readFileSync(DATA_FILE, 'utf8');
+        db = JSON.parse(fileData);
+    } catch (err) { console.error("Error reading data:", err); }
+}
 
-let quizzes = []; 
-let pastResults = []; 
+function saveData() {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
+}
+
 let players = {};
 let currentQuiz = null;
+let currentHost = null; // لمعرفة صاحب المسابقة الحالية
 let currentQuestionIndex = -1;
 let timer;
 let timeLeft = 15;
@@ -34,24 +50,32 @@ let highestStreakData = { name: '', streak: 0 };
 
 io.on('connection', (socket) => {
     
-    // الإدارة
-    socket.on('adminLogin', (password) => {
-        if(password === "1234") socket.emit('adminAuthSuccess', { quizzes, pastResults });
-        else socket.emit('adminAuthFailed');
+    // تسجيل الدخول (للآدمن والشاشة الرئيسية)
+    socket.on('adminLogin', (data) => {
+        const { username, password } = data;
+        if (ACCOUNTS[username] && ACCOUNTS[username] === password) {
+            socket.username = username;
+            socket.emit('adminAuthSuccess', { quizzes: db[username].quizzes, pastResults: db[username].pastResults });
+        } else {
+            socket.emit('adminAuthFailed');
+        }
     });
 
     socket.on('saveNewQuiz', (newQuiz) => {
+        if(!socket.username) return;
         newQuiz.id = "q" + Date.now();
-        quizzes.push(newQuiz);
-        socket.emit('quizzesUpdated', quizzes);
+        db[socket.username].quizzes.push(newQuiz);
+        saveData();
+        socket.emit('quizzesUpdated', db[socket.username].quizzes);
     });
 
     socket.on('deleteQuiz', (quizId) => {
-        quizzes = quizzes.filter(q => q.id !== quizId);
-        socket.emit('quizzesUpdated', quizzes);
+        if(!socket.username) return;
+        db[socket.username].quizzes = db[socket.username].quizzes.filter(q => q.id !== quizId);
+        saveData();
+        socket.emit('quizzesUpdated', db[socket.username].quizzes);
     });
 
-    // اللاعبين
     socket.on('joinGame', (playerName) => {
         players[socket.id] = { 
             id: socket.id, name: playerName, score: 0, answered: false, 
@@ -72,26 +96,22 @@ io.on('connection', (socket) => {
             
             if (answerIndex === q.answer) {
                 p.pendingPoints = Math.round((500 + (500 * (timeLeft / 15))) * multiplier);
-            } else {
-                p.pendingPoints = 0;
-            }
+            } else { p.pendingPoints = 0; }
 
             let answeredCount = Object.values(players).filter(pl => pl.answered).length;
             let totalPlayers = Object.keys(players).length;
             io.emit('answerCountUpdated', answeredCount, totalPlayers);
 
-            if(answeredCount >= totalPlayers && totalPlayers > 0) {
-                endCurrentQuestion();
-            }
+            if(answeredCount >= totalPlayers && totalPlayers > 0) endCurrentQuestion();
         }
     });
 
-    socket.on('skipQuestion', () => {
-        if(isQuestionActive) endCurrentQuestion();
-    });
+    socket.on('skipQuestion', () => { if(isQuestionActive) endCurrentQuestion(); });
 
     socket.on('startQuiz', (quizId) => {
-        currentQuiz = quizzes.find(q => q.id === quizId);
+        if(!socket.username) return;
+        currentHost = socket.username;
+        currentQuiz = db[currentHost].quizzes.find(q => q.id === quizId);
         currentQuestionIndex = -1;
         highestStreakData = { name: '', streak: 0 };
         for (let id in players) {
@@ -103,10 +123,7 @@ io.on('connection', (socket) => {
 
     socket.on('nextPhase', (phase) => {
         if (phase === 'leaderboard') {
-            io.emit('showIntermediateLeaderboard', {
-                leaderboard: getLeaderboard().slice(0, 10),
-                streakData: highestStreakData
-            }); 
+            io.emit('showIntermediateLeaderboard', { leaderboard: getLeaderboard().slice(0, 10), streakData: highestStreakData }); 
         } 
         else if (phase === 'nextQuestion') {
             currentQuestionIndex++;
@@ -114,29 +131,26 @@ io.on('connection', (socket) => {
                 startQuestionSequence();
             } else {
                 let finalBoard = getLeaderboard();
-                pastResults.push({
-                    id: Date.now(),
-                    title: currentQuiz.title,
-                    date: new Date().toLocaleString('ar-SA'),
-                    leaderboard: finalBoard
-                });
+                if(currentHost && db[currentHost]) {
+                    db[currentHost].pastResults.push({
+                        id: Date.now(), title: currentQuiz.title,
+                        date: new Date().toLocaleString('ar-SA'), leaderboard: finalBoard
+                    });
+                    saveData();
+                    socket.emit('resultsUpdated', db[currentHost].pastResults); 
+                }
                 io.emit('endGame', finalBoard);
-                io.emit('resultsUpdated', pastResults); 
             }
         }
     });
 
     socket.on('podiumFinished', () => {
-        for (let id in players) {
-            io.to(id).emit('showFinalRank', { rank: players[id].currentRank, score: players[id].score });
-        }
+        for (let id in players) { io.to(id).emit('showFinalRank', { rank: players[id].currentRank, score: players[id].score }); }
     });
 });
 
 function startQuestionSequence() {
-    for (let id in players) {
-        players[id].answered = false; players[id].pendingPoints = 0; players[id].lastAnswer = null;
-    }
+    for (let id in players) { players[id].answered = false; players[id].pendingPoints = 0; players[id].lastAnswer = null; }
     let q = currentQuiz.questions[currentQuestionIndex];
     io.emit('prepareQuestion', { question: q.question, options: q.options, isDouble: q.isDouble, totalPlayers: Object.keys(players).length });
     
@@ -145,8 +159,7 @@ function startQuestionSequence() {
         io.emit('startQuestion', timeLeft);
         clearInterval(timer);
         timer = setInterval(() => {
-            timeLeft--;
-            io.emit('timerUpdate', timeLeft);
+            timeLeft--; io.emit('timerUpdate', timeLeft);
             if (timeLeft <= 0) endCurrentQuestion();
         }, 1000);
     }, 3000);
