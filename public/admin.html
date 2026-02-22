@@ -16,18 +16,13 @@
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
         th { background-color: #f2f2f2; color: #333; }
-        @media print {
-            body * { visibility: hidden; }
-            #print-area, #print-area * { visibility: visible; }
-            #print-area { position: absolute; left: 0; top: 0; width: 100%; }
-            .no-print { display: none !important; }
-        }
+        @media print { body * { visibility: hidden; } #print-area, #print-area * { visibility: visible; } #print-area { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }
     </style>
 </head>
 <body>
     <div class="container" id="login-section">
         <h1>الدخول للإدارة</h1>
-        <input type="text" id="adminUser" placeholder="اسم المستخدم (Qafilatalmithaq أو mohso92)">
+        <input type="text" id="adminUser" placeholder="اسم المستخدم">
         <input type="password" id="adminPass" placeholder="كلمة المرور">
         <button onclick="login()">دخول</button>
     </div>
@@ -56,7 +51,7 @@
 
     <div class="container" id="print-area" style="display: none;">
         <button class="no-print" onclick="closePrintView()">رجوع</button>
-        <button class="btn-success no-print" onclick="window.print()">🖨️ حفظ كـ PDF / طباعة</button>
+        <button class="btn-success no-print" onclick="window.print()">🖨️ حفظ كـ PDF</button>
         <div id="print-content" style="margin-top: 20px;"></div>
     </div>
 
@@ -64,63 +59,34 @@
         const socket = io();
         let questionCount = 0; let allResults = [];
 
-        function login() { 
-            socket.emit('adminLogin', {
-                username: document.getElementById('adminUser').value.trim(),
-                password: document.getElementById('adminPass').value.trim()
-            }); 
-        }
-        
+        function login() { socket.emit('adminLogin', { username: document.getElementById('adminUser').value.trim(), password: document.getElementById('adminPass').value.trim() }); }
         socket.on('adminAuthFailed', () => alert("اسم المستخدم أو كلمة المرور خاطئة"));
-        socket.on('adminAuthSuccess', (data) => { 
-            document.getElementById('login-section').style.display = 'none'; 
-            document.getElementById('dashboard-section').style.display = 'block'; 
-            allResults = data.pastResults || [];
-            renderQuizzes(data.quizzes); renderResults();
-        });
-        
+        socket.on('adminAuthSuccess', (data) => { document.getElementById('login-section').style.display = 'none'; document.getElementById('dashboard-section').style.display = 'block'; allResults = data.pastResults || []; renderQuizzes(data.quizzes); renderResults(); });
         socket.on('quizzesUpdated', (quizzes) => { renderQuizzes(quizzes); cancelCreate(); });
         socket.on('resultsUpdated', (results) => { allResults = results; renderResults(); });
 
         function switchTab(tab) {
-            document.getElementById('tab-quizzes').classList.remove('active');
-            document.getElementById('tab-results').classList.remove('active');
-            document.getElementById('tab-' + tab).classList.add('active');
-            document.getElementById('quizzes-view').style.display = tab === 'quizzes' ? 'block' : 'none';
-            document.getElementById('results-view').style.display = tab === 'results' ? 'block' : 'none';
+            document.getElementById('tab-quizzes').classList.remove('active'); document.getElementById('tab-results').classList.remove('active'); document.getElementById('tab-' + tab).classList.add('active');
+            document.getElementById('quizzes-view').style.display = tab === 'quizzes' ? 'block' : 'none'; document.getElementById('results-view').style.display = tab === 'results' ? 'block' : 'none';
         }
 
         function renderQuizzes(quizzes) {
-            const list = document.getElementById('quizzes-list');
-            list.innerHTML = '';
-            quizzes.forEach(q => {
-                list.innerHTML += `<div style="padding:15px; border:1px solid #ddd; margin-bottom:10px; display:flex; justify-content:space-between;">
-                    <strong>${q.title}</strong> <button class="btn-danger" onclick="socket.emit('deleteQuiz', '${q.id}')">حذف</button>
-                </div>`;
-            });
+            const list = document.getElementById('quizzes-list'); list.innerHTML = '';
+            quizzes.forEach(q => { list.innerHTML += `<div style="padding:15px; border:1px solid #ddd; margin-bottom:10px; display:flex; justify-content:space-between;"><strong>${q.title}</strong> <button class="btn-danger" onclick="socket.emit('deleteQuiz', '${q.id}')">حذف</button></div>`; });
         }
 
         function renderResults() {
-            const list = document.getElementById('results-list');
-            list.innerHTML = '';
+            const list = document.getElementById('results-list'); list.innerHTML = '';
             if(allResults.length === 0) list.innerHTML = '<p>لا توجد نتائج مسجلة بعد.</p>';
-            allResults.slice().reverse().forEach(res => { 
-                list.innerHTML += `<div style="padding:15px; border:1px solid #ddd; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
-                    <div><strong>${res.title}</strong><br><small>${res.date}</small></div>
-                    <button onclick="viewResult(${res.id})">عرض النتائج</button>
-                </div>`;
-            });
+            allResults.slice().reverse().forEach(res => { list.innerHTML += `<div style="padding:15px; border:1px solid #ddd; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;"><div><strong>${res.title}</strong><br><small>${res.date}</small></div><button onclick="viewResult(${res.id})">عرض النتائج</button></div>`; });
         }
 
         function viewResult(id) {
-            const res = allResults.find(r => r.id === id);
-            if(!res) return;
-            document.getElementById('dashboard-section').style.display = 'none';
-            document.getElementById('print-area').style.display = 'block';
+            const res = allResults.find(r => r.id === id); if(!res) return;
+            document.getElementById('dashboard-section').style.display = 'none'; document.getElementById('print-area').style.display = 'block';
             let html = `<h2>نتائج: ${res.title}</h2><p>التاريخ: ${res.date}</p><table><tr><th>المركز</th><th>الاسم</th><th>النقاط</th></tr>`;
             res.leaderboard.forEach((p, index) => { html += `<tr><td>${index + 1}</td><td>${p.name}</td><td>${p.score}</td></tr>`; });
-            html += `</table>`;
-            document.getElementById('print-content').innerHTML = html;
+            html += `</table>`; document.getElementById('print-content').innerHTML = html;
         }
 
         function closePrintView() { document.getElementById('print-area').style.display = 'none'; document.getElementById('dashboard-section').style.display = 'block'; }
@@ -128,9 +94,7 @@
         function cancelCreate() { document.getElementById('create-section').style.display = 'none'; document.getElementById('dashboard-section').style.display = 'block'; }
 
         function addQuestionField() {
-            questionCount++;
-            const div = document.createElement('div');
-            div.className = 'question-block';
+            questionCount++; const div = document.createElement('div'); div.className = 'question-block';
             div.innerHTML = `
                 <label>السؤال ${questionCount}:</label> <input type="text" id="q-${questionCount}-text">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
@@ -145,17 +109,12 @@
         }
 
         function saveQuiz() {
-            const title = document.getElementById('quizTitle').value;
-            const theme = document.getElementById('quizTheme').value;
-            const questions = [];
+            const title = document.getElementById('quizTitle').value; const theme = document.getElementById('quizTheme').value; const questions = [];
             for(let i = 1; i <= questionCount; i++) {
                 const qText = document.getElementById(`q-${i}-text`).value;
                 if(qText) {
                     const selectedAns = document.querySelector(`input[name="ans-${i}"]:checked`).value;
-                    questions.push({ 
-                        question: qText, options: [document.getElementById(`q-${i}-opt0`).value, document.getElementById(`q-${i}-opt1`).value, document.getElementById(`q-${i}-opt2`).value, document.getElementById(`q-${i}-opt3`).value], 
-                        answer: parseInt(selectedAns), isDouble: document.getElementById(`q-${i}-double`).value === "true"
-                    });
+                    questions.push({ question: qText, options: [document.getElementById(`q-${i}-opt0`).value, document.getElementById(`q-${i}-opt1`).value, document.getElementById(`q-${i}-opt2`).value, document.getElementById(`q-${i}-opt3`).value], answer: parseInt(selectedAns), isDouble: document.getElementById(`q-${i}-double`).value === "true" });
                 }
             }
             socket.emit('saveNewQuiz', { title, theme, questions });
