@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>شاشة العرض - قافلة الميثاق</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        :root { --main-bg: #ffffff; --main-color: #1a73e8; --text-color: #333; }
+        body { font-family: 'Segoe UI', Tahoma; text-align: center; background: var(--main-bg); color: var(--text-color); margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; background: rgba(0,0,0,0.05); padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .logo-img { max-height: 150px; margin-bottom: 20px; }
+        .btn { padding: 15px 30px; font-size: 20px; cursor: pointer; background: var(--main-color); color: white; border: none; border-radius: 8px; margin: 10px; font-weight: bold;}
+        #qrcode { display: flex; justify-content: center; margin: 20px; background: white; padding: 20px; border-radius: 10px; display: inline-block; border: 2px solid #ddd;}
+        
+        .top-bar { display: flex; justify-content: space-between; align-items: center; font-size: 24px; font-weight: bold; margin-bottom: 20px;}
+        .timer-text { font-size: 70px; color: #e21b3c; }
+        .answers-count { background: #333; color: white; padding: 10px 20px; border-radius: 30px; font-size: 28px;}
+        
+        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 30px;}
+        .option-box { padding: 30px; border-radius: 8px; font-size: 24px; font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; min-height: 120px; transition: 0.3s;}
+        .dimmed { opacity: 0.3; } .correct { border: 5px solid #333; transform: scale(1.05); }
+        .stats-info { margin-top: 15px; font-size: 22px; background: rgba(0,0,0,0.6); padding: 8px 15px; border-radius: 10px; display: none; width: 80%;}
+        .shape { font-size: 35px; margin-left: 10px; }
+        
+        .color-0 { background: #e21b3c; } .color-1 { background: #1368ce; } .color-2 { background: #d89e00; } .color-3 { background: #26890c; }
+
+        .streak-banner { background: #ff9800; color: white; padding: 10px; border-radius: 10px; font-size: 24px; font-weight: bold; margin-bottom: 20px; display: none;}
+        .leaderboard-list { list-style: none; padding: 0; text-align: right; width: 90%; margin: 0 auto;}
+        .leaderboard-list li { background: #f8f9fa; color: black; margin: 10px 0; padding: 15px 20px; border-radius: 8px; font-size: 24px; font-weight: bold; display: flex; justify-content: space-between; border: 1px solid #ddd;}
+        .trend-up { color: #4CAF50; font-size: 20px; } .trend-down { color: #F44336; font-size: 20px; } .trend-flat { color: #9E9E9E; font-size: 20px; }
+        
+        .podium { display: flex; justify-content: center; align-items: flex-end; height: 350px; margin-top: 50px; gap: 10px;}
+        .step { width: 150px; text-align: center; font-weight: bold; font-size: 24px; border-radius: 10px 10px 0 0; transition: height 1s; height: 0; opacity: 0; display: flex; flex-direction: column; padding-top: 10px;}
+        .step-2 { background: #C0C0C0; } .step-1 { background: #FFD700; color: #333; z-index: 10;} .step-3 { background: #CD7F32; }
+    </style>
+</head>
+<body>
+    <img class="logo-img" src="https://i.postimg.cc/h4Q0J4Bz/LOGO3_(2).png">
+    <div class="container">
+        <div id="screen-setup">
+            <h1>استضافة مسابقة</h1>
+            <select id="quiz-select" style="padding: 10px; font-size: 18px; width: 80%; margin-bottom: 20px;"></select><br>
+            <button class="btn" onclick="startLobby()">فتح الغرفة</button>
+        </div>
+
+        <div id="screen-lobby" style="display: none;">
+            <h2 id="lobby-title"></h2>
+            <div id="qrcode"></div>
+            <p>اللاعبون: <span id="player-count" style="font-size: 30px;">0</span></p>
+            <button class="btn" style="background: #28a745;" onclick="socket.emit('nextPhase', 'nextQuestion')">ابدأ المسابقة</button>
+        </div>
+
+        <div id="screen-game" style="display: none;">
+            <div class="top-bar">
+                <div class="answers-count">الإجابات: <span id="ans-count">0</span> / <span id="total-players">0</span></div>
+                <div id="timer" class="timer-text">--</div>
+                <div style="display: flex; gap: 10px;">
+                    <div id="double-badge" style="color: white; background: #e21b3c; padding: 10px; border-radius: 10px; font-weight:bold; display:none;">نقاط مضاعفة!</div>
+                    <button id="skip-btn" class="btn" style="background: #ff9800; margin: 0; display:none;" onclick="socket.emit('skipQuestion')">إظهار النتيجة</button>
+                </div>
+            </div>
+            <h1 id="question-text" style="font-size: 45px; margin: 30px 0;"></h1>
+            <div class="options-grid" id="options-list"></div>
+            <button id="next-btn" class="btn" onclick="socket.emit('nextPhase', 'leaderboard')" style="margin-top: 40px; display:none;">لوحة الصدارة</button>
+        </div>
+
+        <div id="screen-leaderboard" style="display: none;">
+            <div id="streak-banner" class="streak-banner"></div>
+            <h1>لوحة الصدارة</h1>
+            <ul class="leaderboard-list" id="top10-list"></ul>
+            <button class="btn" onclick="socket.emit('nextPhase', 'nextQuestion')" style="margin-top: 30px;">السؤال التالي</button>
+        </div>
+
+        <div id="screen-finale" style="display: none;">
+            <h1 style="font-size: 50px; color: #e21b3c;">🏆 الفائزون 🏆</h1>
+            <div class="podium" id="podium-container"></div>
+            <button id="show-all-btn" class="btn" onclick="showFullLeaderboard()" style="margin-top: 40px; display: none;">عرض كل النتائج</button>
+        </div>
+        
+        <div id="full-leaderboard" style="display: none;">
+            <h1>النتائج الكاملة للجميع</h1>
+            <ul class="leaderboard-list" id="full-list" style="font-size: 20px;"></ul>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let finalLeaderboardData = [];
+        
+        socket.emit('adminLogin', '1234');
+        socket.on('adminAuthSuccess', (data) => {
+            const select = document.getElementById('quiz-select');
+            select.innerHTML = '';
+            data.quizzes.forEach(q => { select.innerHTML += `<option value="${q.id}">${q.title}</option>`; });
+        });
+
+        new QRCode(document.getElementById("qrcode"), { text: window.location.href.replace('index.html', '') + 'player.html', width: 200, height: 200 });
+
+        function startLobby() {
+            const quizId = document.getElementById('quiz-select').value;
+            if(quizId) socket.emit('startQuiz', quizId);
+        }
+
+        socket.on('quizStarted', (quiz) => {
+            hideAll(); document.getElementById('screen-lobby').style.display = 'block';
+            document.getElementById('lobby-title').innerText = quiz.title;
+            if(quiz.theme) {
+                document.documentElement.style.setProperty('--main-bg', quiz.theme);
+                document.documentElement.style.setProperty('--text-color', quiz.theme === '#252525' ? 'white' : '#333');
+            }
+        });
+
+        socket.on('updateLobby', (players) => { document.getElementById('player-count').innerText = players.length; });
+
+        const shapes = ['▲', '◆', '●', '■'];
+
+        socket.on('prepareQuestion', (data) => {
+            hideAll(); document.getElementById('screen-game').style.display = 'block';
+            document.getElementById('timer').innerText = "استعد";
+            document.getElementById('question-text').innerText = data.question;
+            document.getElementById('ans-count').innerText = "0";
+            document.getElementById('total-players').innerText = data.totalPlayers;
+            document.getElementById('next-btn').style.display = 'none';
+            document.getElementById('skip-btn').style.display = 'none'; 
+            document.getElementById('double-badge').style.display = data.isDouble ? 'block' : 'none';
+            
+            const opts = document.getElementById('options-list');
+            opts.innerHTML = '';
+            data.options.forEach((opt, i) => {
+                opts.innerHTML += `
+                    <div class="option-box color-${i}" id="opt-box-${i}">
+                        <div><span class="shape">${shapes[i]}</span> ${opt}</div>
+                        <div class="stats-info" id="stats-${i}"></div>
+                    </div>`;
+            });
+        });
+
+        socket.on('startQuestion', (time) => {
+            document.getElementById('timer').innerText = time;
+            document.getElementById('skip-btn').style.display = 'block'; 
+        });
+
+        socket.on('timerUpdate', (time) => document.getElementById('timer').innerText = time);
+        socket.on('answerCountUpdated', (answered, total) => { document.getElementById('ans-count').innerText = answered; });
+
+        socket.on('showCorrectAnswer', (data) => {
+            document.getElementById('timer').innerText = "انتهى";
+            document.getElementById('skip-btn').style.display = 'none'; 
+            
+            data.stats.forEach((count, i) => {
+                let box = document.getElementById(`opt-box-${i}`);
+                let statDiv = document.getElementById(`stats-${i}`);
+                if(box && statDiv) {
+                    let pct = data.totalAnswers > 0 ? Math.round((count / data.totalAnswers) * 100) : 0;
+                    statDiv.innerText = `${count} إجابة (${pct}%)`;
+                    statDiv.style.display = 'block';
+                    if(i === data.answer) box.classList.add('correct');
+                    else box.classList.add('dimmed');
+                }
+            });
+            document.getElementById('next-btn').style.display = 'inline-block';
+        });
+
+        socket.on('showIntermediateLeaderboard', (data) => {
+            hideAll(); document.getElementById('screen-leaderboard').style.display = 'block';
+            
+            const streakBanner = document.getElementById('streak-banner');
+            if(data.streakData.streak >= 3) {
+                streakBanner.innerText = `🔥 أعلى سلسلة متتالية: ${data.streakData.name} (${data.streakData.streak} إجابات!) 🔥`;
+                streakBanner.style.display = 'block';
+            } else streakBanner.style.display = 'none';
+
+            const list = document.getElementById('top10-list');
+            list.innerHTML = '';
+            data.leaderboard.forEach((p, i) => {
+                let trend = `<span class="trend-flat">➖</span>`;
+                if(p.rankChange > 0) trend = `<span class="trend-up">🔺 صعد ${p.rankChange}</span>`;
+                else if(p.rankChange < 0) trend = `<span class="trend-down">🔻 نزل ${Math.abs(p.rankChange)}</span>`;
+
+                list.innerHTML += `<li><span>${i+1}. ${p.name} ${trend}</span><span>${p.score} نقطة</span></li>`;
+            });
+        });
+
+        socket.on('endGame', (leaderboard) => {
+            finalLeaderboardData = leaderboard;
+            hideAll(); document.getElementById('screen-finale').style.display = 'block';
+            document.getElementById('show-all-btn').style.display = 'none'; // نخفيه في البداية
+            
+            const podium = document.getElementById('podium-container');
+            const top3 = leaderboard.slice(0, 3);
+            const order = [1, 0, 2];
+            const heights = ['200px', '280px', '140px'];
+            const classes = ['step-2', 'step-1', 'step-3'];
+
+            podium.innerHTML = '';
+            order.forEach(i => {
+                if(top3[i]) {
+                    podium.innerHTML += `<div class="step ${classes[i]}" id="winner-${i}"><div>${top3[i].name}</div><div style="font-size:16px;">${top3[i].score} نقطة</div></div>`;
+                } else podium.innerHTML += `<div style="width:150px;"></div>`;
+            });
+
+            setTimeout(() => { if(document.getElementById('winner-2')) { document.getElementById('winner-2').style.opacity = '1'; document.getElementById('winner-2').style.height = heights[2]; } }, 1000);
+            setTimeout(() => { if(document.getElementById('winner-1')) { document.getElementById('winner-1').style.opacity = '1'; document.getElementById('winner-1').style.height = heights[0]; } }, 3000);
+            setTimeout(() => { 
+                if(document.getElementById('winner-0')) { document.getElementById('winner-0').style.opacity = '1'; document.getElementById('winner-0').style.height = heights[1]; }
+                confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+                
+                // إظهار زر "عرض كل النتائج" بعد انتهاء الاحتفال
+                setTimeout(() => {
+                    document.getElementById('show-all-btn').style.display = 'inline-block';
+                }, 2000);
+
+                socket.emit('podiumFinished'); 
+            }, 5500);
+        });
+
+        function showFullLeaderboard() {
+            document.getElementById('screen-finale').style.display = 'none';
+            document.getElementById('full-leaderboard').style.display = 'block';
+            const list = document.getElementById('full-list');
+            list.innerHTML = '';
+            finalLeaderboardData.forEach((p, i) => { 
+                list.innerHTML += `<li><span>المركز ${i+1}: ${p.name}</span> <span>${p.score} نقطة</span></li>`; 
+            });
+        }
+
+        function hideAll() { ['screen-setup', 'screen-lobby', 'screen-game', 'screen-leaderboard', 'screen-finale', 'full-leaderboard'].forEach(id => document.getElementById(id).style.display = 'none'); }
+    </script>
+</body>
+</html>

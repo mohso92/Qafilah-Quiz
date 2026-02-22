@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>قافلة الميثاق</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * { box-sizing: border-box; touch-action: manipulation; }
+        body { font-family: 'Segoe UI', Tahoma; text-align: center; margin: 0; background: #f2f2f2; height: 100vh;}
+        
+        .screen { display: none; flex-direction: column; justify-content: center; align-items: center; height: 100vh; padding: 20px;}
+        .active { display: flex; }
+        
+        input { width: 100%; max-width: 400px; padding: 18px; margin-bottom: 20px; border-radius: 8px; border: 2px solid #ccc; font-size: 20px; text-align: center;}
+        .btn-main { background: #1a73e8; color: white; border: none; font-weight: bold; width: 100%; max-width: 400px; padding: 18px; border-radius: 8px; font-size: 22px;}
+        
+        #q-box { font-size: 24px; font-weight: bold; background: white; padding: 15px; border-radius: 10px; width: 100%; margin-bottom: 20px;}
+        .grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 10px; width: 100%; height: 60vh;}
+        .opt-btn { border: none; border-radius: 10px; color: white; font-size: 18px; font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 10px;}
+        
+        .color-0 { background: #e21b3c; } .color-1 { background: #1368ce; } .color-2 { background: #d89e00; } .color-3 { background: #26890c; }
+        
+        .result-screen { color: white; font-weight: bold; }
+        .bg-correct { background: #66bf39; } .bg-wrong { background: #e21b3c; } .bg-info { background: #1a73e8; } .bg-finale { background: #46178f; }
+        
+        .icon-large { font-size: 80px; margin-bottom: 10px;}
+        .box-info { background: rgba(0,0,0,0.3); padding: 15px; border-radius: 10px; width: 100%; margin-top: 15px; font-size: 24px;}
+    </style>
+</head>
+<body>
+    <div id="scr-login" class="screen active">
+        <img src="https://i.postimg.cc/h4Q0J4Bz/LOGO3_(2).png" style="max-height: 80px; margin-bottom: 20px;">
+        <h2 style="color: #333;">قافلة الميثاق</h2>
+        <input type="text" id="pName" placeholder="الاسم" autocomplete="off" />
+        <button class="btn-main" onclick="join()">دخول</button>
+    </div>
+
+    <div id="scr-wait" class="screen result-screen bg-info">
+        <h2 id="wait-msg">أنت بالداخل!<br>انظر للشاشة</h2>
+    </div>
+
+    <div id="scr-game" class="screen" style="justify-content: flex-start; padding-top: 30px;">
+        <div id="q-box">السؤال</div>
+        <div class="grid">
+            <button class="opt-btn color-0" onclick="sendAns(0)"><span style="font-size:35px">▲</span><span id="opt0"></span></button>
+            <button class="opt-btn color-1" onclick="sendAns(1)"><span style="font-size:35px">◆</span><span id="opt1"></span></button>
+            <button class="opt-btn color-2" onclick="sendAns(2)"><span style="font-size:35px">●</span><span id="opt2"></span></button>
+            <button class="opt-btn color-3" onclick="sendAns(3)"><span style="font-size:35px">■</span><span id="opt3"></span></button>
+        </div>
+    </div>
+
+    <div id="scr-result" class="screen result-screen">
+        <div class="icon-large" id="res-icon"></div>
+        <h1 id="res-title"></h1>
+        <div class="box-info" id="res-pts"></div>
+        <div class="box-info" id="res-rnk"></div>
+    </div>
+
+    <script>
+        const socket = io();
+
+        function join() {
+            if (document.getElementById('pName').value) {
+                socket.emit('joinGame', document.getElementById('pName').value);
+                show('scr-wait');
+            }
+        }
+
+        socket.on('prepareQuestion', (data) => {
+            show('scr-wait');
+            document.getElementById('wait-msg').innerHTML = "استعد...";
+            document.getElementById('q-box').innerText = data.question;
+            for(let i=0; i<4; i++) document.getElementById('opt'+i).innerText = data.options[i];
+        });
+
+        socket.on('startQuestion', () => show('scr-game'));
+
+        function sendAns(idx) {
+            socket.emit('submitAnswer', idx);
+            show('scr-wait');
+            document.getElementById('wait-msg').innerHTML = "تم التسليم!<br>في انتظار البقية...";
+        }
+
+        socket.on('questionResult', (data) => {
+            show('scr-result');
+            let scr = document.getElementById('scr-result');
+            
+            if (!data.answered) {
+                scr.className = 'screen result-screen bg-wrong active';
+                document.getElementById('res-icon').innerText = "⏱️";
+                document.getElementById('res-title').innerText = "انتهى الوقت!";
+                document.getElementById('res-pts').innerText = "النقاط المكتسبة: 0";
+            } else if (data.correct) {
+                scr.className = 'screen result-screen bg-correct active';
+                document.getElementById('res-icon').innerText = "✔️";
+                document.getElementById('res-title').innerText = "إجابة صحيحة!";
+                document.getElementById('res-pts').innerText = "كسبت +" + data.pointsGained;
+            } else {
+                scr.className = 'screen result-screen bg-wrong active';
+                document.getElementById('res-icon').innerText = "❌";
+                document.getElementById('res-title').innerText = "إجابة خاطئة!";
+                document.getElementById('res-pts').innerText = "النقاط المكتسبة: 0";
+            }
+            document.getElementById('res-rnk').innerText = "مركزك الحالي: " + data.rank;
+        });
+
+        socket.on('showFinalRank', (data) => {
+            show('scr-result');
+            document.getElementById('scr-result').className = 'screen result-screen bg-finale active';
+            
+            let emoji = data.rank === 1 ? "🥇" : data.rank === 2 ? "🥈" : data.rank === 3 ? "🥉" : "👏";
+            document.getElementById('res-icon').innerText = emoji;
+            document.getElementById('res-title').innerText = "المركز النهائي: " + data.rank;
+            document.getElementById('res-pts').innerText = "مجموع نقاطك: " + data.score;
+            document.getElementById('res-rnk').style.display = 'none';
+        });
+
+        function show(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+    </script>
+</body>
+</html>
