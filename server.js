@@ -1,3 +1,4 @@
+// 1. server.js
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -13,24 +14,26 @@ app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'adm
 app.get('/admin.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 app.get('/player', (req, res) => res.sendFile(path.join(__dirname, 'public', 'player.html')));
 
-// الحسابات المعتمدة
-const ACCOUNTS = { 'Qafilatalmithaq': 'Mithaq5566', 'mohso92': 'Mosh2468' };
+const ACCOUNTS = {
+    'qafilatalmithaq': { pass: 'Mithaq5566', title: 'قافلة الميثاق', logo: 'https://i.postimg.cc/h4Q0J4Bz/LOGO3_(2).png' },
+    'mohso92': { pass: 'Mosh2468', title: 'لعبة محمد عبدالله', logo: 'https://i.postimg.cc/SQ6MLkcv/shʿar-mhmd-4.png' },
+    'alsbtain.m': { pass: 'Ms22774411', title: 'مسجد السبطين', logo: 'https://i.postimg.cc/kMYdptNn/msjd-alsbtyn.png' }
+};
 
-// إعداد قاعدة البيانات الدائمة
 const MONGO_URI = process.env.MONGO_URI;
-let dbFallback = { 'Qafilatalmithaq': { quizzes: [], pastResults: [] }, 'mohso92': { quizzes: [], pastResults: [] } };
+let dbFallback = {};
+for (let k in ACCOUNTS) dbFallback[k] = { quizzes: [], pastResults: [] };
 
 const userSchema = new mongoose.Schema({ username: String, quizzes: Array, pastResults: Array });
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
 if (MONGO_URI) {
     mongoose.connect(MONGO_URI).then(async () => {
-        console.log('Connected to MongoDB');
         for (let uname of Object.keys(ACCOUNTS)) {
             let u = await User.findOne({ username: uname });
             if (!u) await User.create({ username: uname, quizzes: [], pastResults: [] });
         }
-    }).catch(err => console.log('MongoDB Error:', err));
+    }).catch(err => console.log(err));
 }
 
 async function getUserData(username) {
@@ -46,18 +49,15 @@ async function saveUserData(username, data) {
     else dbFallback[username] = data;
 }
 
-// الغرف المنفصلة (لكل مسابقة رقم خاص PIN)
 let rooms = {}; 
 
 io.on('connection', (socket) => {
-    
-    // الدخول
     socket.on('adminLogin', async (data) => {
         const { username, password } = data;
-        if (ACCOUNTS[username] && ACCOUNTS[username] === password) {
+        if (ACCOUNTS[username] && ACCOUNTS[username].pass === password) {
             socket.username = username;
             let userData = await getUserData(username);
-            socket.emit('adminAuthSuccess', userData);
+            socket.emit('adminAuthSuccess', { quizzes: userData.quizzes, pastResults: userData.pastResults, settings: ACCOUNTS[username] });
         } else socket.emit('adminAuthFailed');
     });
 
@@ -77,7 +77,6 @@ io.on('connection', (socket) => {
         socket.emit('quizzesUpdated', userData.quizzes);
     });
 
-    // بدء مسابقة برقم خاص (PIN)
     socket.on('startQuiz', async (quizId) => {
         if(!socket.username) return;
         let userData = await getUserData(socket.username);
@@ -85,55 +84,37 @@ io.on('connection', (socket) => {
         if(!quiz) return;
 
         let pin = Math.floor(100000 + Math.random() * 900000).toString();
-        rooms[pin] = {
-            pin: pin, hostId: socket.id, hostUser: socket.username, quiz: quiz,
-            phase: 'lobby', currentQuestionIndex: -1, players: {}, timeLeft: 15,
-            isQuestionActive: false, highestStreakData: { name: '', streak: 0 }
-        };
+        rooms[pin] = { pin, hostId: socket.id, hostUser: socket.username, quiz, settings: ACCOUNTS[socket.username], phase: 'lobby', currentQuestionIndex: -1, players: {}, timeLeft: 15, isQuestionActive: false, highestStreakData: { name: '', streak: 0 } };
         socket.join(pin);
-        socket.emit('quizStarted', { quiz, pin });
+        socket.emit('quizStarted', { quiz, pin, settings: ACCOUNTS[socket.username] });
     });
 
-    // انضمام لاعب وحماية الريفريش
     socket.on('joinGame', (data) => {
         let { pin, name } = data;
         let room = rooms[pin];
-        if(!room) return socket.emit('joinError', 'رمز المسابقة غير صحيح أو منتهية');
-        if(room.phase !== 'lobby') return socket.emit('joinError', 'المسابقة بدأت بالفعل لا يمكنك الدخول!');
+        if(!room) return socket.emit('joinError', 'Invalid PIN');
+        if(room.phase !== 'lobby') return socket.emit('joinError', 'Game started');
 
         let existingId = Object.keys(room.players).find(id => room.players[id].name === name);
-        if(existingId) {
-            let p = room.players[existingId]; delete room.players[existingId];
-            p.id = socket.id; room.players[socket.id] = p; // استرجاع النقاط
-        } else {
-            room.players[socket.id] = { id: socket.id, name, score: 0, answered: false, pendingPoints: 0, lastAnswer: null, streak: 0, previousRank: 0, currentRank: 0, rankChange: 0 };
-        }
+        if(existingId) { let p = room.players[existingId]; delete room.players[existingId]; p.id = socket.id; room.players[socket.id] = p; } 
+        else room.players[socket.id] = { id: socket.id, name, score: 0, answered: false, pendingPoints: 0, lastAnswer: null, streak: 0, previousRank: 0, currentRank: 0, rankChange: 0 };
 
         socket.join(pin);
         io.to(room.hostId).emit('updateLobby', Object.values(room.players));
-        socket.emit('joinSuccess', { quizName: room.quiz.title });
+        socket.emit('joinSuccess', { quizName: room.quiz.title, settings: room.settings });
     });
 
-    // طرد لاعب
     socket.on('kickPlayer', (data) => {
-        let { pin, playerId } = data;
-        let room = rooms[pin];
-        if(room && room.hostId === socket.id && room.players[playerId]) {
-            delete room.players[playerId];
-            io.to(playerId).emit('kicked');
-            socket.emit('updateLobby', Object.values(room.players));
-        }
+        let { pin, playerId } = data; let room = rooms[pin];
+        if(room && room.hostId === socket.id && room.players[playerId]) { delete room.players[playerId]; io.to(playerId).emit('kicked'); socket.emit('updateLobby', Object.values(room.players)); }
     });
 
     socket.on('submitAnswer', (data) => {
-        let { pin, answerIndex } = data;
-        let room = rooms[pin];
+        let { pin, answerIndex } = data; let room = rooms[pin];
         if (room && room.isQuestionActive && room.players[socket.id] && !room.players[socket.id].answered) {
-            let p = room.players[socket.id];
-            p.answered = true; p.lastAnswer = answerIndex;
+            let p = room.players[socket.id]; p.answered = true; p.lastAnswer = answerIndex;
             let q = room.quiz.questions[room.currentQuestionIndex];
             p.pendingPoints = answerIndex === q.answer ? Math.round((500 + (500 * (room.timeLeft / 15))) * (q.isDouble ? 2 : 1)) : 0;
-
             let answeredCount = Object.values(room.players).filter(pl => pl.answered).length;
             let totalPlayers = Object.keys(room.players).length;
             io.to(room.hostId).emit('answerCountUpdated', answeredCount, totalPlayers);
@@ -144,87 +125,51 @@ io.on('connection', (socket) => {
     socket.on('skipQuestion', (pin) => { if(rooms[pin] && rooms[pin].isQuestionActive) endQuestion(pin); });
 
     socket.on('nextPhase', async (data) => {
-        let { pin, phase } = data;
-        let room = rooms[pin];
+        let { pin, phase } = data; let room = rooms[pin];
         if(!room) return;
-
-        if (phase === 'leaderboard') {
-            room.phase = 'leaderboard';
-            io.to(room.hostId).emit('showIntermediateLeaderboard', { leaderboard: getLeaderboard(room).slice(0, 10), streakData: room.highestStreakData }); 
-        } 
+        if (phase === 'leaderboard') { room.phase = 'leaderboard'; io.to(room.hostId).emit('showIntermediateLeaderboard', { leaderboard: getLeaderboard(room).slice(0, 10), streakData: room.highestStreakData }); } 
         else if (phase === 'nextQuestion') {
             room.currentQuestionIndex++;
             if (room.currentQuestionIndex < room.quiz.questions.length) startQuestionSequence(pin);
             else {
-                room.phase = 'finale';
-                let finalBoard = getLeaderboard(room);
-                let userData = await getUserData(room.hostUser);
+                room.phase = 'finale'; let finalBoard = getLeaderboard(room); let userData = await getUserData(room.hostUser);
                 userData.pastResults.push({ id: Date.now(), title: room.quiz.title, date: new Date().toLocaleString('ar-SA'), leaderboard: finalBoard });
-                await saveUserData(room.hostUser, userData);
-                
-                io.to(room.hostId).emit('endGame', finalBoard);
-                socket.emit('resultsUpdated', userData.pastResults);
+                await saveUserData(room.hostUser, userData); io.to(room.hostId).emit('endGame', finalBoard); socket.emit('resultsUpdated', userData.pastResults);
             }
         }
     });
 
-    socket.on('podiumFinished', (pin) => {
-        let room = rooms[pin];
-        if(room) {
-            for (let id in room.players) io.to(id).emit('showFinalRank', { rank: room.players[id].currentRank, score: room.players[id].score });
-            setTimeout(() => delete rooms[pin], 300000); // إغلاق الغرفة بعد 5 دقائق
-        }
-    });
+    socket.on('podiumFinished', (pin) => { let room = rooms[pin]; if(room) { for (let id in room.players) io.to(id).emit('showFinalRank', { rank: room.players[id].currentRank, score: room.players[id].score }); setTimeout(() => delete rooms[pin], 300000); } });
 });
 
 function startQuestionSequence(pin) {
     let room = rooms[pin]; room.phase = 'question';
     for (let id in room.players) { room.players[id].answered = false; room.players[id].pendingPoints = 0; room.players[id].lastAnswer = null; }
     let q = room.quiz.questions[room.currentQuestionIndex];
-    
-    io.to(room.hostId).emit('prepareQuestion', { question: q.question, options: q.options, isDouble: q.isDouble, totalPlayers: Object.keys(room.players).length, pin: pin });
+    io.to(room.hostId).emit('prepareQuestion', { question: q.question, options: q.options, isDouble: q.isDouble, totalPlayers: Object.keys(room.players).length, pin });
     io.to(pin).emit('playerPrepareQuestion', { question: q.question, options: q.options });
-
     setTimeout(() => {
         room.isQuestionActive = true; room.timeLeft = 15;
-        io.to(room.hostId).emit('startQuestion', room.timeLeft);
-        io.to(pin).emit('playerStartQuestion'); 
-        
+        io.to(room.hostId).emit('startQuestion', room.timeLeft); io.to(pin).emit('playerStartQuestion'); 
         clearInterval(room.timer);
-        room.timer = setInterval(() => {
-            room.timeLeft--; io.to(room.hostId).emit('timerUpdate', room.timeLeft);
-            if (room.timeLeft <= 0) endQuestion(pin);
-        }, 1000);
+        room.timer = setInterval(() => { room.timeLeft--; io.to(room.hostId).emit('timerUpdate', room.timeLeft); if (room.timeLeft <= 0) endQuestion(pin); }, 1000);
     }, 3000);
 }
 
 function endQuestion(pin) {
-    let room = rooms[pin];
-    if(!room || !room.isQuestionActive) return;
+    let room = rooms[pin]; if(!room || !room.isQuestionActive) return;
     clearInterval(room.timer); room.isQuestionActive = false; room.phase = 'answer';
-    
     let q = room.quiz.questions[room.currentQuestionIndex];
-    let oldLeaderboard = getLeaderboard(room); oldLeaderboard.forEach((p, index) => { p.previousRank = index + 1; });
-
+    let oldLeaderboard = getLeaderboard(room); oldLeaderboard.forEach((p, index) => p.previousRank = index + 1);
     let stats = [0, 0, 0, 0]; let totalAnswers = 0;
     for (let id in room.players) {
         let p = room.players[id];
         if (p.answered && p.lastAnswer !== null) { stats[p.lastAnswer]++; totalAnswers++; }
-        if (p.lastAnswer === q.answer && p.answered) {
-            p.score += p.pendingPoints; p.streak++;
-            if (p.streak > room.highestStreakData.streak) room.highestStreakData = { name: p.name, streak: p.streak };
-        } else p.streak = 0;
+        if (p.lastAnswer === q.answer && p.answered) { p.score += p.pendingPoints; p.streak++; if (p.streak > room.highestStreakData.streak) room.highestStreakData = { name: p.name, streak: p.streak }; } else p.streak = 0;
     }
-
-    let newLeaderboard = getLeaderboard(room);
-    newLeaderboard.forEach((p, index) => { p.currentRank = index + 1; p.rankChange = p.previousRank === 0 ? 0 : p.previousRank - p.currentRank; });
-
-    io.to(room.hostId).emit('showCorrectAnswer', { answer: q.answer, stats: stats, totalAnswers: totalAnswers });
-    for (let id in room.players) {
-        let p = room.players[id]; let isCorrect = (p.lastAnswer === q.answer && p.answered);
-        io.to(id).emit('questionResult', { correct: isCorrect, pointsGained: isCorrect ? p.pendingPoints : 0, rank: p.currentRank, score: p.score, answered: p.answered });
-    }
+    let newLeaderboard = getLeaderboard(room); newLeaderboard.forEach((p, index) => { p.currentRank = index + 1; p.rankChange = p.previousRank === 0 ? 0 : p.previousRank - p.currentRank; });
+    io.to(room.hostId).emit('showCorrectAnswer', { answer: q.answer, stats, totalAnswers });
+    for (let id in room.players) { let p = room.players[id]; let isCorrect = (p.lastAnswer === q.answer && p.answered); io.to(id).emit('questionResult', { correct: isCorrect, pointsGained: isCorrect ? p.pendingPoints : 0, rank: p.currentRank, score: p.score, answered: p.answered }); }
 }
-
 function getLeaderboard(room) { return Object.values(room.players).sort((a, b) => b.score - a.score); }
-server.listen(3000, () => console.log('Running on port 3000'));
+server.listen(3000);
