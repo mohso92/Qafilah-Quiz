@@ -2,123 +2,70 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>لوحة الإدارة - قافلة الميثاق</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>اللاعب</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma; background: #f4f6f9; margin: 0;}
-        .container { max-width: 800px; margin: 40px auto; background: white; padding: 30px; border-radius: 12px;}
-        h1 { color: #1a73e8; border-bottom: 2px solid #eee; padding-bottom: 10px;}
-        input[type="text"], input[type="password"], select { width: 100%; padding: 12px; margin: 8px 0 20px 0; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;}
-        button { background: #1a73e8; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; font-weight: bold; margin: 5px;}
-        .btn-danger { background: #dc3545; } .btn-success { background: #28a745; }
-        .nav-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #ddd; padding-bottom: 10px;}
-        .nav-btn { background: #eee; color: #333; } .nav-btn.active { background: #1a73e8; color: white; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
-        th { background-color: #f2f2f2; color: #333; }
-        @media print { body * { visibility: hidden; } #print-area, #print-area * { visibility: visible; } #print-area { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }
+        * { box-sizing: border-box; touch-action: manipulation; }
+        body { font-family: 'Segoe UI', Tahoma, Arial; text-align: center; margin: 0; background: #f2f2f2; height: 100vh;}
+        .screen { display: none; flex-direction: column; justify-content: center; align-items: center; height: 100vh; padding: 20px;}
+        .active { display: flex; }
+        input { width: 100%; max-width: 400px; padding: 18px; margin-bottom: 15px; border-radius: 8px; border: 2px solid #ccc; font-size: 20px; text-align: center;}
+        .btn-main { background: #1a73e8; color: white; border: none; font-weight: bold; width: 100%; max-width: 400px; padding: 18px; border-radius: 8px; font-size: 22px;}
+        #q-box { font-size: 24px; font-weight: bold; background: white; padding: 15px; border-radius: 10px; width: 100%; margin-bottom: 20px;}
+        .grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 10px; width: 100%; height: 60vh;}
+        .opt-btn { border: none; border-radius: 10px; color: white; font-size: 18px; font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 10px;}
+        .color-0 { background: #e21b3c; } .color-1 { background: #1368ce; } .color-2 { background: #d89e00; } .color-3 { background: #26890c; }
+        .result-screen { color: white; font-weight: bold; }
+        .bg-correct { background: #66bf39; } .bg-wrong { background: #e21b3c; } .bg-info { background: #1a73e8; } .bg-finale { background: #46178f; } .bg-kicked { background: #333; }
+        .icon-large { font-size: 80px; margin-bottom: 10px;}
+        .box-info { background: rgba(0,0,0,0.3); padding: 15px; border-radius: 10px; width: 100%; margin-top: 15px; font-size: 24px;}
     </style>
 </head>
 <body>
-    <div class="container" id="login-section">
-        <h1>الدخول للإدارة</h1>
-        <input type="text" id="adminUser" placeholder="اسم المستخدم">
-        <input type="password" id="adminPass" placeholder="كلمة المرور">
-        <button onclick="login()">دخول</button>
+    <div id="scr-login" class="screen active">
+        <img id="main-logo" src="https://i.postimg.cc/h4Q0J4Bz/LOGO3_(2).png" style="max-height: 80px; margin-bottom: 20px;">
+        <h2 id="main-title" style="color: #333;"></h2>
+        <input type="text" id="pPin" placeholder="PIN" autocomplete="off" />
+        <input type="text" id="pName" placeholder="Name" autocomplete="off" />
+        <button class="btn-main" onclick="join()">Join</button>
     </div>
 
-    <div class="container" id="dashboard-section" style="display: none;">
-        <div class="nav-tabs no-print">
-            <button class="nav-btn active" id="tab-quizzes" onclick="switchTab('quizzes')">بنوك الأسئلة</button>
-            <button class="nav-btn" id="tab-results" onclick="switchTab('results')">أرشيف النتائج</button>
+    <div id="scr-wait" class="screen result-screen bg-info"><h2 id="wait-msg">Wait...</h2></div>
+    <div id="scr-game" class="screen" style="justify-content: flex-start; padding-top: 30px;">
+        <div id="q-box">Q</div>
+        <div class="grid">
+            <button class="opt-btn color-0" onclick="sendAns(0)"><span style="font-size:35px">▲</span><span id="opt0"></span></button>
+            <button class="opt-btn color-1" onclick="sendAns(1)"><span style="font-size:35px">◆</span><span id="opt1"></span></button>
+            <button class="opt-btn color-2" onclick="sendAns(2)"><span style="font-size:35px">●</span><span id="opt2"></span></button>
+            <button class="opt-btn color-3" onclick="sendAns(3)"><span style="font-size:35px">■</span><span id="opt3"></span></button>
         </div>
-        <div id="quizzes-view">
-            <button class="btn-success" onclick="showCreateForm()">+ مسابقة جديدة</button>
-            <div id="quizzes-list" style="margin-top: 20px;"></div>
-        </div>
-        <div id="results-view" style="display: none;"><div id="results-list"></div></div>
     </div>
-
-    <div class="container" id="create-section" style="display: none;">
-        <h1>إعدادات اللعبة</h1>
-        <label>الاسم:</label> <input type="text" id="quizTitle">
-        <label>الخلفية:</label> <select id="quizTheme"><option value="#ffffff">أبيض</option> <option value="#252525">داكن</option></select>
-        <div id="questions-container"></div>
-        <button onclick="addQuestionField()">+ إضافة سؤال</button>
-        <button class="btn-success" onclick="saveQuiz()">حفظ اللعبة</button>
-        <button class="btn-danger" onclick="cancelCreate()">إلغاء</button>
-    </div>
-
-    <div class="container" id="print-area" style="display: none;">
-        <button class="no-print" onclick="closePrintView()">رجوع</button>
-        <button class="btn-success no-print" onclick="window.print()">🖨️ حفظ كـ PDF</button>
-        <div id="print-content" style="margin-top: 20px;"></div>
-    </div>
+    <div id="scr-result" class="screen result-screen"><div class="icon-large" id="res-icon"></div><h1 id="res-title"></h1><div class="box-info" id="res-pts"></div><div class="box-info" id="res-rnk"></div></div>
 
     <script>
-        const socket = io();
-        let questionCount = 0; let allResults = [];
-
-        function login() { socket.emit('adminLogin', { username: document.getElementById('adminUser').value.trim(), password: document.getElementById('adminPass').value.trim() }); }
-        socket.on('adminAuthFailed', () => alert("اسم المستخدم أو كلمة المرور خاطئة"));
-        socket.on('adminAuthSuccess', (data) => { document.getElementById('login-section').style.display = 'none'; document.getElementById('dashboard-section').style.display = 'block'; allResults = data.pastResults || []; renderQuizzes(data.quizzes); renderResults(); });
-        socket.on('quizzesUpdated', (quizzes) => { renderQuizzes(quizzes); cancelCreate(); });
-        socket.on('resultsUpdated', (results) => { allResults = results; renderResults(); });
-
-        function switchTab(tab) {
-            document.getElementById('tab-quizzes').classList.remove('active'); document.getElementById('tab-results').classList.remove('active'); document.getElementById('tab-' + tab).classList.add('active');
-            document.getElementById('quizzes-view').style.display = tab === 'quizzes' ? 'block' : 'none'; document.getElementById('results-view').style.display = tab === 'results' ? 'block' : 'none';
-        }
-
-        function renderQuizzes(quizzes) {
-            const list = document.getElementById('quizzes-list'); list.innerHTML = '';
-            quizzes.forEach(q => { list.innerHTML += `<div style="padding:15px; border:1px solid #ddd; margin-bottom:10px; display:flex; justify-content:space-between;"><strong>${q.title}</strong> <button class="btn-danger" onclick="socket.emit('deleteQuiz', '${q.id}')">حذف</button></div>`; });
-        }
-
-        function renderResults() {
-            const list = document.getElementById('results-list'); list.innerHTML = '';
-            if(allResults.length === 0) list.innerHTML = '<p>لا توجد نتائج مسجلة بعد.</p>';
-            allResults.slice().reverse().forEach(res => { list.innerHTML += `<div style="padding:15px; border:1px solid #ddd; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;"><div><strong>${res.title}</strong><br><small>${res.date}</small></div><button onclick="viewResult(${res.id})">عرض النتائج</button></div>`; });
-        }
-
-        function viewResult(id) {
-            const res = allResults.find(r => r.id === id); if(!res) return;
-            document.getElementById('dashboard-section').style.display = 'none'; document.getElementById('print-area').style.display = 'block';
-            let html = `<h2>نتائج: ${res.title}</h2><p>التاريخ: ${res.date}</p><table><tr><th>المركز</th><th>الاسم</th><th>النقاط</th></tr>`;
-            res.leaderboard.forEach((p, index) => { html += `<tr><td>${index + 1}</td><td>${p.name}</td><td>${p.score}</td></tr>`; });
-            html += `</table>`; document.getElementById('print-content').innerHTML = html;
-        }
-
-        function closePrintView() { document.getElementById('print-area').style.display = 'none'; document.getElementById('dashboard-section').style.display = 'block'; }
-        function showCreateForm() { document.getElementById('dashboard-section').style.display = 'none'; document.getElementById('create-section').style.display = 'block'; document.getElementById('questions-container').innerHTML = ''; questionCount = 0; addQuestionField(); }
-        function cancelCreate() { document.getElementById('create-section').style.display = 'none'; document.getElementById('dashboard-section').style.display = 'block'; }
-
-        function addQuestionField() {
-            questionCount++; const div = document.createElement('div'); div.className = 'question-block';
-            div.innerHTML = `
-                <label>السؤال ${questionCount}:</label> <input type="text" id="q-${questionCount}-text">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-                    <div style="border-top: 4px solid #e21b3c; padding: 10px; border: 1px solid #ddd;"><input type="text" id="q-${questionCount}-opt0" placeholder="أحمر"><label><input type="radio" name="ans-${questionCount}" value="0" checked> صحيحة</label></div>
-                    <div style="border-top: 4px solid #1368ce; padding: 10px; border: 1px solid #ddd;"><input type="text" id="q-${questionCount}-opt1" placeholder="أزرق"><label><input type="radio" name="ans-${questionCount}" value="1"> صحيحة</label></div>
-                    <div style="border-top: 4px solid #d89e00; padding: 10px; border: 1px solid #ddd;"><input type="text" id="q-${questionCount}-opt2" placeholder="أصفر"><label><input type="radio" name="ans-${questionCount}" value="2"> صحيحة</label></div>
-                    <div style="border-top: 4px solid #26890c; padding: 10px; border: 1px solid #ddd;"><input type="text" id="q-${questionCount}-opt3" placeholder="أخضر"><label><input type="radio" name="ans-${questionCount}" value="3"> صحيحة</label></div>
-                </div>
-                <div style="margin-top:10px;"><label>دبل نقاط؟</label> <select id="q-${questionCount}-double"><option value="false">لا</option><option value="true">نعم</option></select></div>
-            `;
-            document.getElementById('questions-container').appendChild(div);
-        }
-
-        function saveQuiz() {
-            const title = document.getElementById('quizTitle').value; const theme = document.getElementById('quizTheme').value; const questions = [];
-            for(let i = 1; i <= questionCount; i++) {
-                const qText = document.getElementById(`q-${i}-text`).value;
-                if(qText) {
-                    const selectedAns = document.querySelector(`input[name="ans-${i}"]:checked`).value;
-                    questions.push({ question: qText, options: [document.getElementById(`q-${i}-opt0`).value, document.getElementById(`q-${i}-opt1`).value, document.getElementById(`q-${i}-opt2`).value, document.getElementById(`q-${i}-opt3`).value], answer: parseInt(selectedAns), isDouble: document.getElementById(`q-${i}-double`).value === "true" });
-                }
-            }
-            socket.emit('saveNewQuiz', { title, theme, questions });
-        }
+        const socket = io(); let myPin = '';
+        window.onload = () => {
+            const urlParams = new URLSearchParams(window.location.search); const pinFromUrl = urlParams.get('pin');
+            if(pinFromUrl) { document.getElementById('pPin').value = pinFromUrl; document.getElementById('pPin').style.display = 'none'; }
+            let savedName = localStorage.getItem('qafelahName'); if(savedName) document.getElementById('pName').value = savedName;
+        };
+        function join() { let pin = document.getElementById('pPin').value.trim(); let name = document.getElementById('pName').value.trim(); if (pin && name) { myPin = pin; localStorage.setItem('qafelahName', name); socket.emit('joinGame', { pin, name }); } }
+        socket.on('joinError', (msg) => { alert(msg); });
+        socket.on('joinSuccess', (data) => { if(data.settings) { document.getElementById('main-logo').src = data.settings.logo; document.getElementById('main-title').innerText = data.settings.title; } show('scr-wait'); });
+        socket.on('kicked', () => { show('scr-result'); document.getElementById('scr-result').className = 'screen result-screen bg-kicked active'; document.getElementById('res-icon').innerText = "🚫"; document.getElementById('res-title').innerText = "Kicked"; document.getElementById('res-pts').innerText = ""; document.getElementById('res-rnk').style.display = 'none'; });
+        socket.on('playerPrepareQuestion', (data) => { show('scr-wait'); document.getElementById('wait-msg').innerHTML = "Ready..."; document.getElementById('q-box').innerText = data.question; for(let i=0; i<4; i++) document.getElementById('opt'+i).innerText = data.options[i]; });
+        socket.on('playerStartQuestion', () => show('scr-game'));
+        function sendAns(idx) { socket.emit('submitAnswer', { pin: myPin, answerIndex: idx }); show('scr-wait'); document.getElementById('wait-msg').innerHTML = "Sent!"; }
+        socket.on('questionResult', (data) => {
+            show('scr-result'); let scr = document.getElementById('scr-result'); document.getElementById('res-rnk').style.display = 'block';
+            if (!data.answered) { scr.className = 'screen result-screen bg-wrong active'; document.getElementById('res-icon').innerText = "⏱️"; document.getElementById('res-title').innerText = "Time Up"; document.getElementById('res-pts').innerText = "0"; } 
+            else if (data.correct) { scr.className = 'screen result-screen bg-correct active'; document.getElementById('res-icon').innerText = "✔️"; document.getElementById('res-title').innerText = "Correct"; document.getElementById('res-pts').innerText = "+" + data.pointsGained; } 
+            else { scr.className = 'screen result-screen bg-wrong active'; document.getElementById('res-icon').innerText = "❌"; document.getElementById('res-title').innerText = "Wrong"; document.getElementById('res-pts').innerText = "0"; }
+            document.getElementById('res-rnk').innerText = "Rank: " + data.rank;
+        });
+        socket.on('showFinalRank', (data) => { show('scr-result'); document.getElementById('scr-result').className = 'screen result-screen bg-finale active'; document.getElementById('res-title').innerText = "Final Rank: " + data.rank; document.getElementById('res-pts').innerText = "Score: " + data.score; document.getElementById('res-rnk').style.display = 'none'; });
+        function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
     </script>
 </body>
 </html>
