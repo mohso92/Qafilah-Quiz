@@ -35,59 +35,59 @@
     </style>
 </head>
 <body>
-    <img id="main-logo" class="logo-img" src="https://i.postimg.cc/h4Q0J4Bz/LOGO3_(2).png">
+    <img id="main-logo" class="logo-img" src="https://i.postimg.cc/SQ6MLkcv/shʿar-mhmd-4.png">
     <div class="container">
         <div id="screen-setup">
             <h1 id="main-title">استضافة مسابقة</h1>
             <div id="host-login-area">
-                <input type="text" id="hostUser" placeholder="Username"><br>
-                <input type="password" id="hostPass" placeholder="Password"><br>
-                <button class="btn" onclick="hostLogin()">Login</button>
+                <input type="text" id="hostUser" placeholder="اسم المستخدم"><br>
+                <input type="password" id="hostPass" placeholder="كلمة المرور"><br>
+                <button class="btn" onclick="hostLogin()">دخول</button>
             </div>
             <div id="quiz-selection" style="display:none; margin-top:20px;">
                 <select id="quiz-select"></select><br>
-                <button class="btn" onclick="startLobby()">Start</button>
+                <button class="btn" onclick="startLobby()">بدء</button>
             </div>
         </div>
 
         <div id="screen-lobby" style="display: none;">
             <h2 id="lobby-title"></h2>
-            <div style="font-size: 35px; font-weight: bold; color: #e21b3c; margin: 10px;">PIN: <span id="lobby-pin"></span></div>
+            <div style="font-size: 35px; font-weight: bold; color: #e21b3c; margin: 10px;">الرمز: <span id="lobby-pin"></span></div>
             <div id="qrcode"></div>
-            <p>Players: <span id="player-count" style="font-size: 30px;">0</span></p>
+            <p>اللاعبون: <span id="player-count" style="font-size: 30px;">0</span></p>
             <div id="players-list-ui" style="margin-bottom: 20px; max-height: 150px; overflow-y: auto;"></div>
-            <button class="btn" style="background: #28a745;" onclick="socket.emit('nextPhase', {pin: currentPin, phase: 'nextQuestion'})">Start Game</button>
+            <button class="btn" style="background: #28a745;" onclick="socket.emit('nextPhase', {pin: currentPin, phase: 'nextQuestion'})">ابدأ المسابقة</button>
         </div>
 
         <div id="screen-game" style="display: none;">
             <div class="top-bar">
-                <div class="answers-count">Answers: <span id="ans-count">0</span> / <span id="total-players">0</span></div>
+                <div class="answers-count">الإجابات: <span id="ans-count">0</span> / <span id="total-players">0</span></div>
                 <div id="timer" class="timer-text">--</div>
                 <div style="display: flex; gap: 10px;">
                     <div id="double-badge" style="color: white; background: #e21b3c; padding: 10px; border-radius: 10px; font-weight:bold; display:none;">x2!</div>
-                    <button id="skip-btn" class="btn" style="background: #ff9800; margin: 0; display:none;" onclick="socket.emit('skipQuestion', currentPin)">Skip</button>
+                    <button id="skip-btn" class="btn" style="background: #ff9800; margin: 0; display:none;" onclick="socket.emit('skipQuestion', currentPin)">تخطي</button>
                 </div>
             </div>
             <h1 id="question-text" style="font-size: 45px; margin: 30px 0;"></h1>
             <div class="options-grid" id="options-list"></div>
-            <button id="next-btn" class="btn" onclick="socket.emit('nextPhase', {pin: currentPin, phase: 'leaderboard'})" style="margin-top: 40px; display:none;">Leaderboard</button>
+            <button id="next-btn" class="btn" onclick="socket.emit('nextPhase', {pin: currentPin, phase: 'leaderboard'})" style="margin-top: 40px; display:none;">لوحة الصدارة</button>
         </div>
 
         <div id="screen-leaderboard" style="display: none;">
             <div id="streak-banner" class="streak-banner"></div>
-            <h1>Leaderboard</h1>
+            <h1>لوحة الصدارة</h1>
             <ul class="leaderboard-list" id="top10-list"></ul>
-            <button class="btn" onclick="socket.emit('nextPhase', {pin: currentPin, phase: 'nextQuestion'})" style="margin-top: 30px;">Next</button>
+            <button class="btn" onclick="socket.emit('nextPhase', {pin: currentPin, phase: 'nextQuestion'})" style="margin-top: 30px;">التالي</button>
         </div>
 
         <div id="screen-finale" style="display: none;">
-            <h1 style="font-size: 50px; color: #e21b3c;">🏆 Winners 🏆</h1>
+            <h1 style="font-size: 50px; color: #e21b3c;">🏆 الفائزون 🏆</h1>
             <div class="podium" id="podium-container"></div>
-            <button id="show-all-btn" class="btn" onclick="showFullLeaderboard()" style="margin-top: 40px; display: none;">Show All</button>
+            <button id="show-all-btn" class="btn" onclick="showFullLeaderboard()" style="margin-top: 40px; display: none;">عرض الكل</button>
         </div>
         
         <div id="full-leaderboard" style="display: none;">
-            <h1>Full Leaderboard</h1>
+            <h1>النتائج الكاملة</h1>
             <ul class="leaderboard-list" id="full-list" style="font-size: 20px;"></ul>
         </div>
     </div>
@@ -95,7 +95,7 @@
     <script>
         const socket = io(); let finalLeaderboardData = []; let currentPin = ''; let qrCodeObj = null;
         function hostLogin() { socket.emit('adminLogin', { username: document.getElementById('hostUser').value.trim(), password: document.getElementById('hostPass').value.trim() }); }
-        socket.on('adminAuthFailed', () => alert("Login Failed"));
+        socket.on('adminAuthFailed', () => alert("خطأ في تسجيل الدخول"));
         socket.on('adminAuthSuccess', (data) => {
             if(data.settings) { document.getElementById('main-logo').src = data.settings.logo; document.getElementById('main-title').innerText = data.settings.title; document.title = data.settings.title; }
             document.getElementById('host-login-area').style.display = 'none'; document.getElementById('quiz-selection').style.display = 'block';
@@ -119,7 +119,7 @@
         const shapes = ['▲', '◆', '●', '■'];
         socket.on('prepareQuestion', (data) => {
             hideAll(); document.getElementById('screen-game').style.display = 'block';
-            document.getElementById('timer').innerText = "Ready"; document.getElementById('question-text').innerText = data.question; document.getElementById('ans-count').innerText = "0"; document.getElementById('total-players').innerText = data.totalPlayers; document.getElementById('next-btn').style.display = 'none'; document.getElementById('skip-btn').style.display = 'none'; document.getElementById('double-badge').style.display = data.isDouble ? 'block' : 'none';
+            document.getElementById('timer').innerText = "استعد"; document.getElementById('question-text').innerText = data.question; document.getElementById('ans-count').innerText = "0"; document.getElementById('total-players').innerText = data.totalPlayers; document.getElementById('next-btn').style.display = 'none'; document.getElementById('skip-btn').style.display = 'none'; document.getElementById('double-badge').style.display = data.isDouble ? 'block' : 'none';
             const opts = document.getElementById('options-list'); opts.innerHTML = '';
             data.options.forEach((opt, i) => { opts.innerHTML += `<div class="option-box color-${i}" id="opt-box-${i}"><div><span class="shape">${shapes[i]}</span> ${opt}</div><div class="stats-info" id="stats-${i}"></div></div>`; });
         });
@@ -127,7 +127,7 @@
         socket.on('timerUpdate', (time) => document.getElementById('timer').innerText = time);
         socket.on('answerCountUpdated', (answered, total) => { document.getElementById('ans-count').innerText = answered; });
         socket.on('showCorrectAnswer', (data) => {
-            document.getElementById('timer').innerText = "Done"; document.getElementById('skip-btn').style.display = 'none'; 
+            document.getElementById('timer').innerText = "انتهى"; document.getElementById('skip-btn').style.display = 'none'; 
             data.stats.forEach((count, i) => {
                 let box = document.getElementById(`opt-box-${i}`); let statDiv = document.getElementById(`stats-${i}`);
                 if(box && statDiv) { let pct = data.totalAnswers > 0 ? Math.round((count / data.totalAnswers) * 100) : 0; statDiv.innerText = `${count} (${pct}%)`; statDiv.style.display = 'block'; if(i === data.answer) box.classList.add('correct'); else box.classList.add('dimmed'); }
