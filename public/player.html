@@ -24,16 +24,16 @@
 </head>
 <body>
     <div id="scr-login" class="screen active">
-        <img id="main-logo" src="https://i.postimg.cc/h4Q0J4Bz/LOGO3_(2).png" style="max-height: 80px; margin-bottom: 20px;">
+        <img id="main-logo" src="https://i.postimg.cc/SQ6MLkcv/shʿar-mhmd-4.png" style="max-height: 80px; margin-bottom: 20px;">
         <h2 id="main-title" style="color: #333;"></h2>
-        <input type="text" id="pPin" placeholder="PIN" autocomplete="off" />
-        <input type="text" id="pName" placeholder="Name" autocomplete="off" />
-        <button class="btn-main" onclick="join()">Join</button>
+        <input type="text" id="pPin" placeholder="رمز المسابقة" autocomplete="off" />
+        <input type="text" id="pName" placeholder="الاسم" autocomplete="off" />
+        <button class="btn-main" onclick="join()">دخول</button>
     </div>
 
-    <div id="scr-wait" class="screen result-screen bg-info"><h2 id="wait-msg">Wait...</h2></div>
+    <div id="scr-wait" class="screen result-screen bg-info"><h2 id="wait-msg">الرجاء الانتظار...</h2></div>
     <div id="scr-game" class="screen" style="justify-content: flex-start; padding-top: 30px;">
-        <div id="q-box">Q</div>
+        <div id="q-box">س</div>
         <div class="grid">
             <button class="opt-btn color-0" onclick="sendAns(0)"><span style="font-size:35px">▲</span><span id="opt0"></span></button>
             <button class="opt-btn color-1" onclick="sendAns(1)"><span style="font-size:35px">◆</span><span id="opt1"></span></button>
@@ -53,18 +53,18 @@
         function join() { let pin = document.getElementById('pPin').value.trim(); let name = document.getElementById('pName').value.trim(); if (pin && name) { myPin = pin; localStorage.setItem('qafelahName', name); socket.emit('joinGame', { pin, name }); } }
         socket.on('joinError', (msg) => { alert(msg); });
         socket.on('joinSuccess', (data) => { if(data.settings) { document.getElementById('main-logo').src = data.settings.logo; document.getElementById('main-title').innerText = data.settings.title; } show('scr-wait'); });
-        socket.on('kicked', () => { show('scr-result'); document.getElementById('scr-result').className = 'screen result-screen bg-kicked active'; document.getElementById('res-icon').innerText = "🚫"; document.getElementById('res-title').innerText = "Kicked"; document.getElementById('res-pts').innerText = ""; document.getElementById('res-rnk').style.display = 'none'; });
-        socket.on('playerPrepareQuestion', (data) => { show('scr-wait'); document.getElementById('wait-msg').innerHTML = "Ready..."; document.getElementById('q-box').innerText = data.question; for(let i=0; i<4; i++) document.getElementById('opt'+i).innerText = data.options[i]; });
+        socket.on('kicked', () => { show('scr-result'); document.getElementById('scr-result').className = 'screen result-screen bg-kicked active'; document.getElementById('res-icon').innerText = "🚫"; document.getElementById('res-title').innerText = "تم طردك"; document.getElementById('res-pts').innerText = ""; document.getElementById('res-rnk').style.display = 'none'; });
+        socket.on('playerPrepareQuestion', (data) => { show('scr-wait'); document.getElementById('wait-msg').innerHTML = "استعد..."; document.getElementById('q-box').innerText = data.question; for(let i=0; i<4; i++) document.getElementById('opt'+i).innerText = data.options[i]; });
         socket.on('playerStartQuestion', () => show('scr-game'));
-        function sendAns(idx) { socket.emit('submitAnswer', { pin: myPin, answerIndex: idx }); show('scr-wait'); document.getElementById('wait-msg').innerHTML = "Sent!"; }
+        function sendAns(idx) { socket.emit('submitAnswer', { pin: myPin, answerIndex: idx }); show('scr-wait'); document.getElementById('wait-msg').innerHTML = "تم التسليم!"; }
         socket.on('questionResult', (data) => {
             show('scr-result'); let scr = document.getElementById('scr-result'); document.getElementById('res-rnk').style.display = 'block';
-            if (!data.answered) { scr.className = 'screen result-screen bg-wrong active'; document.getElementById('res-icon').innerText = "⏱️"; document.getElementById('res-title').innerText = "Time Up"; document.getElementById('res-pts').innerText = "0"; } 
-            else if (data.correct) { scr.className = 'screen result-screen bg-correct active'; document.getElementById('res-icon').innerText = "✔️"; document.getElementById('res-title').innerText = "Correct"; document.getElementById('res-pts').innerText = "+" + data.pointsGained; } 
-            else { scr.className = 'screen result-screen bg-wrong active'; document.getElementById('res-icon').innerText = "❌"; document.getElementById('res-title').innerText = "Wrong"; document.getElementById('res-pts').innerText = "0"; }
-            document.getElementById('res-rnk').innerText = "Rank: " + data.rank;
+            if (!data.answered) { scr.className = 'screen result-screen bg-wrong active'; document.getElementById('res-icon').innerText = "⏱️"; document.getElementById('res-title').innerText = "انتهى الوقت"; document.getElementById('res-pts').innerText = "0"; } 
+            else if (data.correct) { scr.className = 'screen result-screen bg-correct active'; document.getElementById('res-icon').innerText = "✔️"; document.getElementById('res-title').innerText = "صحيح"; document.getElementById('res-pts').innerText = "+" + data.pointsGained; } 
+            else { scr.className = 'screen result-screen bg-wrong active'; document.getElementById('res-icon').innerText = "❌"; document.getElementById('res-title').innerText = "خطأ"; document.getElementById('res-pts').innerText = "0"; }
+            document.getElementById('res-rnk').innerText = "المركز: " + data.rank;
         });
-        socket.on('showFinalRank', (data) => { show('scr-result'); document.getElementById('scr-result').className = 'screen result-screen bg-finale active'; document.getElementById('res-title').innerText = "Final Rank: " + data.rank; document.getElementById('res-pts').innerText = "Score: " + data.score; document.getElementById('res-rnk').style.display = 'none'; });
+        socket.on('showFinalRank', (data) => { show('scr-result'); document.getElementById('scr-result').className = 'screen result-screen bg-finale active'; document.getElementById('res-title').innerText = "المركز النهائي: " + data.rank; document.getElementById('res-pts').innerText = "النقاط: " + data.score; document.getElementById('res-rnk').style.display = 'none'; });
         function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
     </script>
 </body>
