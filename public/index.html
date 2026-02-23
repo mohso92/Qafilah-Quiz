@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>شاشة العرض - قافلة الميثاق</title>
+    <title>شاشة العرض</title>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
@@ -31,171 +31,124 @@
         .podium { display: flex; justify-content: center; align-items: flex-end; height: 350px; margin-top: 50px; gap: 10px;}
         .step { width: 150px; text-align: center; font-weight: bold; font-size: 24px; border-radius: 10px 10px 0 0; transition: height 1s; height: 0; opacity: 0; display: flex; flex-direction: column; padding-top: 10px;}
         .step-2 { background: #C0C0C0; } .step-1 { background: #FFD700; color: #333; z-index: 10;} .step-3 { background: #CD7F32; }
-        
-        /* تصميم اللاعبين في غرفة الانتظار */
         .player-pill { display: inline-block; background: var(--main-color); color: white; padding: 8px 15px; border-radius: 20px; margin: 5px; font-size: 18px; font-weight: bold;}
     </style>
 </head>
 <body>
-    <img class="logo-img" src="https://i.postimg.cc/h4Q0J4Bz/LOGO3_(2).png">
+    <img id="main-logo" class="logo-img" src="https://i.postimg.cc/h4Q0J4Bz/LOGO3_(2).png">
     <div class="container">
-        
         <div id="screen-setup">
-            <h1>استضافة مسابقة</h1>
+            <h1 id="main-title">استضافة مسابقة</h1>
             <div id="host-login-area">
-                <input type="text" id="hostUser" placeholder="اسم المستخدم"><br>
-                <input type="password" id="hostPass" placeholder="كلمة المرور"><br>
-                <button class="btn" onclick="hostLogin()">دخول</button>
+                <input type="text" id="hostUser" placeholder="Username"><br>
+                <input type="password" id="hostPass" placeholder="Password"><br>
+                <button class="btn" onclick="hostLogin()">Login</button>
             </div>
             <div id="quiz-selection" style="display:none; margin-top:20px;">
                 <select id="quiz-select"></select><br>
-                <button class="btn" onclick="startLobby()">فتح الغرفة</button>
+                <button class="btn" onclick="startLobby()">Start</button>
             </div>
         </div>
 
         <div id="screen-lobby" style="display: none;">
             <h2 id="lobby-title"></h2>
-            <div style="font-size: 35px; font-weight: bold; color: #e21b3c; margin: 10px;">رمز المسابقة: <span id="lobby-pin"></span></div>
+            <div style="font-size: 35px; font-weight: bold; color: #e21b3c; margin: 10px;">PIN: <span id="lobby-pin"></span></div>
             <div id="qrcode"></div>
-            <p>اللاعبون: <span id="player-count" style="font-size: 30px;">0</span></p>
+            <p>Players: <span id="player-count" style="font-size: 30px;">0</span></p>
             <div id="players-list-ui" style="margin-bottom: 20px; max-height: 150px; overflow-y: auto;"></div>
-            <button class="btn" style="background: #28a745;" onclick="socket.emit('nextPhase', {pin: currentPin, phase: 'nextQuestion'})">ابدأ المسابقة</button>
+            <button class="btn" style="background: #28a745;" onclick="socket.emit('nextPhase', {pin: currentPin, phase: 'nextQuestion'})">Start Game</button>
         </div>
 
         <div id="screen-game" style="display: none;">
             <div class="top-bar">
-                <div class="answers-count">الإجابات: <span id="ans-count">0</span> / <span id="total-players">0</span></div>
+                <div class="answers-count">Answers: <span id="ans-count">0</span> / <span id="total-players">0</span></div>
                 <div id="timer" class="timer-text">--</div>
                 <div style="display: flex; gap: 10px;">
-                    <div id="double-badge" style="color: white; background: #e21b3c; padding: 10px; border-radius: 10px; font-weight:bold; display:none;">نقاط مضاعفة!</div>
-                    <button id="skip-btn" class="btn" style="background: #ff9800; margin: 0; display:none;" onclick="socket.emit('skipQuestion', currentPin)">إظهار النتيجة</button>
+                    <div id="double-badge" style="color: white; background: #e21b3c; padding: 10px; border-radius: 10px; font-weight:bold; display:none;">x2!</div>
+                    <button id="skip-btn" class="btn" style="background: #ff9800; margin: 0; display:none;" onclick="socket.emit('skipQuestion', currentPin)">Skip</button>
                 </div>
             </div>
             <h1 id="question-text" style="font-size: 45px; margin: 30px 0;"></h1>
             <div class="options-grid" id="options-list"></div>
-            <button id="next-btn" class="btn" onclick="socket.emit('nextPhase', {pin: currentPin, phase: 'leaderboard'})" style="margin-top: 40px; display:none;">لوحة الصدارة</button>
+            <button id="next-btn" class="btn" onclick="socket.emit('nextPhase', {pin: currentPin, phase: 'leaderboard'})" style="margin-top: 40px; display:none;">Leaderboard</button>
         </div>
 
         <div id="screen-leaderboard" style="display: none;">
             <div id="streak-banner" class="streak-banner"></div>
-            <h1>لوحة الصدارة</h1>
+            <h1>Leaderboard</h1>
             <ul class="leaderboard-list" id="top10-list"></ul>
-            <button class="btn" onclick="socket.emit('nextPhase', {pin: currentPin, phase: 'nextQuestion'})" style="margin-top: 30px;">السؤال التالي</button>
+            <button class="btn" onclick="socket.emit('nextPhase', {pin: currentPin, phase: 'nextQuestion'})" style="margin-top: 30px;">Next</button>
         </div>
 
         <div id="screen-finale" style="display: none;">
-            <h1 style="font-size: 50px; color: #e21b3c;">🏆 الفائزون 🏆</h1>
+            <h1 style="font-size: 50px; color: #e21b3c;">🏆 Winners 🏆</h1>
             <div class="podium" id="podium-container"></div>
-            <button id="show-all-btn" class="btn" onclick="showFullLeaderboard()" style="margin-top: 40px; display: none;">عرض كل النتائج</button>
+            <button id="show-all-btn" class="btn" onclick="showFullLeaderboard()" style="margin-top: 40px; display: none;">Show All</button>
         </div>
         
         <div id="full-leaderboard" style="display: none;">
-            <h1>النتائج الكاملة للجميع</h1>
+            <h1>Full Leaderboard</h1>
             <ul class="leaderboard-list" id="full-list" style="font-size: 20px;"></ul>
         </div>
     </div>
 
     <script>
-        const socket = io();
-        let finalLeaderboardData = [];
-        let currentPin = '';
-        let qrCodeObj = null;
-        
+        const socket = io(); let finalLeaderboardData = []; let currentPin = ''; let qrCodeObj = null;
         function hostLogin() { socket.emit('adminLogin', { username: document.getElementById('hostUser').value.trim(), password: document.getElementById('hostPass').value.trim() }); }
-        socket.on('adminAuthFailed', () => alert("خطأ في تسجيل الدخول"));
-        
+        socket.on('adminAuthFailed', () => alert("Login Failed"));
         socket.on('adminAuthSuccess', (data) => {
+            if(data.settings) { document.getElementById('main-logo').src = data.settings.logo; document.getElementById('main-title').innerText = data.settings.title; document.title = data.settings.title; }
             document.getElementById('host-login-area').style.display = 'none'; document.getElementById('quiz-selection').style.display = 'block';
             const select = document.getElementById('quiz-select'); select.innerHTML = '';
             data.quizzes.forEach(q => { select.innerHTML += `<option value="${q.id}">${q.title}</option>`; });
         });
-
-        function startLobby() {
-            const quizId = document.getElementById('quiz-select').value;
-            if(quizId) socket.emit('startQuiz', quizId);
-        }
-
+        function startLobby() { const quizId = document.getElementById('quiz-select').value; if(quizId) socket.emit('startQuiz', quizId); }
         socket.on('quizStarted', (data) => {
-            currentPin = data.pin;
-            hideAll(); document.getElementById('screen-lobby').style.display = 'block';
-            document.getElementById('lobby-title').innerText = data.quiz.title;
-            document.getElementById('lobby-pin').innerText = currentPin;
-            
+            currentPin = data.pin; hideAll(); document.getElementById('screen-lobby').style.display = 'block';
+            document.getElementById('lobby-title').innerText = data.quiz.title; document.getElementById('lobby-pin').innerText = currentPin;
             let playerUrl = window.location.href.replace('index.html', '').replace(/\/$/, '') + '/player.html?pin=' + currentPin;
-            document.getElementById("qrcode").innerHTML = '';
-            new QRCode(document.getElementById("qrcode"), { text: playerUrl, width: 200, height: 200 });
-
+            document.getElementById("qrcode").innerHTML = ''; new QRCode(document.getElementById("qrcode"), { text: playerUrl, width: 200, height: 200 });
             if(data.quiz.theme) { document.documentElement.style.setProperty('--main-bg', data.quiz.theme); document.documentElement.style.setProperty('--text-color', data.quiz.theme === '#252525' ? 'white' : '#333'); }
         });
-
         socket.on('updateLobby', (players) => { 
             document.getElementById('player-count').innerText = players.length; 
             const list = document.getElementById('players-list-ui'); list.innerHTML = '';
             players.forEach(p => { list.innerHTML += `<div class="player-pill">${p.name} <button class="btn-danger" onclick="kick('${p.id}')">✖</button></div>`; });
         });
-
         function kick(id) { socket.emit('kickPlayer', { pin: currentPin, playerId: id }); }
-
         const shapes = ['▲', '◆', '●', '■'];
-
         socket.on('prepareQuestion', (data) => {
             hideAll(); document.getElementById('screen-game').style.display = 'block';
-            document.getElementById('timer').innerText = "استعد"; document.getElementById('question-text').innerText = data.question; document.getElementById('ans-count').innerText = "0"; document.getElementById('total-players').innerText = data.totalPlayers; document.getElementById('next-btn').style.display = 'none'; document.getElementById('skip-btn').style.display = 'none'; document.getElementById('double-badge').style.display = data.isDouble ? 'block' : 'none';
+            document.getElementById('timer').innerText = "Ready"; document.getElementById('question-text').innerText = data.question; document.getElementById('ans-count').innerText = "0"; document.getElementById('total-players').innerText = data.totalPlayers; document.getElementById('next-btn').style.display = 'none'; document.getElementById('skip-btn').style.display = 'none'; document.getElementById('double-badge').style.display = data.isDouble ? 'block' : 'none';
             const opts = document.getElementById('options-list'); opts.innerHTML = '';
             data.options.forEach((opt, i) => { opts.innerHTML += `<div class="option-box color-${i}" id="opt-box-${i}"><div><span class="shape">${shapes[i]}</span> ${opt}</div><div class="stats-info" id="stats-${i}"></div></div>`; });
         });
-
         socket.on('startQuestion', (time) => { document.getElementById('timer').innerText = time; document.getElementById('skip-btn').style.display = 'block'; });
         socket.on('timerUpdate', (time) => document.getElementById('timer').innerText = time);
         socket.on('answerCountUpdated', (answered, total) => { document.getElementById('ans-count').innerText = answered; });
-
         socket.on('showCorrectAnswer', (data) => {
-            document.getElementById('timer').innerText = "انتهى"; document.getElementById('skip-btn').style.display = 'none'; 
+            document.getElementById('timer').innerText = "Done"; document.getElementById('skip-btn').style.display = 'none'; 
             data.stats.forEach((count, i) => {
                 let box = document.getElementById(`opt-box-${i}`); let statDiv = document.getElementById(`stats-${i}`);
-                if(box && statDiv) {
-                    let pct = data.totalAnswers > 0 ? Math.round((count / data.totalAnswers) * 100) : 0;
-                    statDiv.innerText = `${count} إجابة (${pct}%)`; statDiv.style.display = 'block';
-                    if(i === data.answer) box.classList.add('correct'); else box.classList.add('dimmed');
-                }
-            });
-            document.getElementById('next-btn').style.display = 'inline-block';
+                if(box && statDiv) { let pct = data.totalAnswers > 0 ? Math.round((count / data.totalAnswers) * 100) : 0; statDiv.innerText = `${count} (${pct}%)`; statDiv.style.display = 'block'; if(i === data.answer) box.classList.add('correct'); else box.classList.add('dimmed'); }
+            }); document.getElementById('next-btn').style.display = 'inline-block';
         });
-
         socket.on('showIntermediateLeaderboard', (data) => {
             hideAll(); document.getElementById('screen-leaderboard').style.display = 'block';
             const streakBanner = document.getElementById('streak-banner');
-            if(data.streakData.streak >= 3) { streakBanner.innerText = `🔥 أعلى سلسلة متتالية: ${data.streakData.name} (${data.streakData.streak} إجابات!) 🔥`; streakBanner.style.display = 'block'; } else streakBanner.style.display = 'none';
+            if(data.streakData.streak >= 3) { streakBanner.innerText = `🔥 ${data.streakData.name} (${data.streakData.streak}) 🔥`; streakBanner.style.display = 'block'; } else streakBanner.style.display = 'none';
             const list = document.getElementById('top10-list'); list.innerHTML = '';
-            data.leaderboard.forEach((p, i) => {
-                let trend = `<span class="trend-flat">➖</span>`;
-                if(p.rankChange > 0) trend = `<span class="trend-up">🔺 صعد ${p.rankChange}</span>`; else if(p.rankChange < 0) trend = `<span class="trend-down">🔻 نزل ${Math.abs(p.rankChange)}</span>`;
-                list.innerHTML += `<li><span>${i+1}. ${p.name} ${trend}</span><span>${p.score} نقطة</span></li>`;
-            });
+            data.leaderboard.forEach((p, i) => { let trend = `<span class="trend-flat">➖</span>`; if(p.rankChange > 0) trend = `<span class="trend-up">🔺 ${p.rankChange}</span>`; else if(p.rankChange < 0) trend = `<span class="trend-down">🔻 ${Math.abs(p.rankChange)}</span>`; list.innerHTML += `<li><span>${i+1}. ${p.name} ${trend}</span><span>${p.score}</span></li>`; });
         });
-
         socket.on('endGame', (leaderboard) => {
             finalLeaderboardData = leaderboard; hideAll(); document.getElementById('screen-finale').style.display = 'block'; document.getElementById('show-all-btn').style.display = 'none'; 
             const podium = document.getElementById('podium-container'); const top3 = leaderboard.slice(0, 3); const order = [1, 0, 2]; const heights = ['200px', '280px', '140px']; const classes = ['step-2', 'step-1', 'step-3'];
-            podium.innerHTML = '';
-            order.forEach(i => { if(top3[i]) { podium.innerHTML += `<div class="step ${classes[i]}" id="winner-${i}"><div>${top3[i].name}</div><div style="font-size:16px;">${top3[i].score} نقطة</div></div>`; } else podium.innerHTML += `<div style="width:150px;"></div>`; });
-
+            podium.innerHTML = ''; order.forEach(i => { if(top3[i]) { podium.innerHTML += `<div class="step ${classes[i]}" id="winner-${i}"><div>${top3[i].name}</div><div style="font-size:16px;">${top3[i].score}</div></div>`; } else podium.innerHTML += `<div style="width:150px;"></div>`; });
             setTimeout(() => { if(document.getElementById('winner-2')) { document.getElementById('winner-2').style.opacity = '1'; document.getElementById('winner-2').style.height = heights[2]; } }, 1000);
             setTimeout(() => { if(document.getElementById('winner-1')) { document.getElementById('winner-1').style.opacity = '1'; document.getElementById('winner-1').style.height = heights[0]; } }, 3000);
-            setTimeout(() => { 
-                if(document.getElementById('winner-0')) { document.getElementById('winner-0').style.opacity = '1'; document.getElementById('winner-0').style.height = heights[1]; }
-                confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
-                setTimeout(() => { document.getElementById('show-all-btn').style.display = 'inline-block'; }, 2000);
-                socket.emit('podiumFinished', currentPin); 
-            }, 5500);
+            setTimeout(() => { if(document.getElementById('winner-0')) { document.getElementById('winner-0').style.opacity = '1'; document.getElementById('winner-0').style.height = heights[1]; } confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } }); setTimeout(() => { document.getElementById('show-all-btn').style.display = 'inline-block'; }, 2000); socket.emit('podiumFinished', currentPin); }, 5500);
         });
-
-        function showFullLeaderboard() {
-            document.getElementById('screen-finale').style.display = 'none'; document.getElementById('full-leaderboard').style.display = 'block';
-            const list = document.getElementById('full-list'); list.innerHTML = '';
-            finalLeaderboardData.forEach((p, i) => { list.innerHTML += `<li><span>المركز ${i+1}: ${p.name}</span> <span>${p.score} نقطة</span></li>`; });
-        }
-
+        function showFullLeaderboard() { document.getElementById('screen-finale').style.display = 'none'; document.getElementById('full-leaderboard').style.display = 'block'; const list = document.getElementById('full-list'); list.innerHTML = ''; finalLeaderboardData.forEach((p, i) => { list.innerHTML += `<li><span>${i+1}: ${p.name}</span> <span>${p.score}</span></li>`; }); }
         function hideAll() { ['screen-setup', 'screen-lobby', 'screen-game', 'screen-leaderboard', 'screen-finale', 'full-leaderboard'].forEach(id => document.getElementById(id).style.display = 'none'); }
     </script>
 </body>
